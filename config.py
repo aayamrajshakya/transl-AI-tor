@@ -5,6 +5,8 @@ This file contains variables and parameters for the project,
 such as file paths, model parameters, and other configuration settings.
 
 """
+HF_ACCESS_TOKEN = "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"
+
 # The language model to use for translation
 LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M" # NLLB
 # LANGUAGE_MODEL = "csebuetnlp/mT5_multilingual_XLSum" # mT5
