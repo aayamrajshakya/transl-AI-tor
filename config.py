@@ -21,5 +21,8 @@ TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
 # TARGET_LANGUAGE = "ydd_Hebr" # Eastern Yiddish
 # Add more languages as needed
 
+# Dataset for evaluation
+EVAL_DATASET = "openlanguagedata/flores_plus" # FLORES-200
+
 # Evaluation metric
 EVAL_METRIC = "bleu" # BLEU score for evaluation

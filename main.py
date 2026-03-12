@@ -1,5 +1,8 @@
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from datasets import load_dataset, get_dataset_split_names
 import evaluate
+import huggingface_hub
+import config
 
 def initialize_translator(model_name: str):
     """
@@ -18,10 +21,28 @@ def translate_text(tokenizer, model, text: str, target_lang: str):
     translation = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
     return translation
     
+def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
+    """
+    This function loads the evaluation dataset using the Hugging Face Datasets library.
+    """
+    validation_dataset = load_dataset(dataset_name, split="validation", )
+    source_texts = validation_dataset["text"]
+    target_texts = []
+    return source_texts, target_texts
+    
 
+def evaluate_translations(predictions, references, metric_name: str):
+    """
+    This function evaluates the translations using the specified evaluation metric.
+    """
+    metric = evaluate.load(metric_name)
+    results = metric.compute(predictions=predictions, references=references)
+    return results
+    
 
 def main():
-    print("This is the main function of the Transl-AI-tor project.")
+    huggingface_hub.login()  # Ensure you are logged in to Hugging Face Hub
+    print(get_dataset_split_names(config.EVAL_DATASET))
 
 if __name__ == "__main__":
     main()
