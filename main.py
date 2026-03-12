@@ -17,19 +17,21 @@ def translate_text(tokenizer, model, text: str, target_lang: str):
     """
     This function takes in text and uses the tokenizer and model to translate it from the source language to the target language.
     """
+    print(f"Translating text: {text}")
     inputs = tokenizer(text, return_tensors="pt")
     translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
     translation = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+    print(f"Translation: {translation}")
     return translation
     
 def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
     """
     This function loads the evaluation dataset using the Hugging Face Datasets library.
     """
-    source_dataset = load_dataset(dataset_name, split="devtest", source_lang=source_lang)
-    source_texts = source_dataset["text"]
-    target_dataset = load_dataset(dataset_name, split="devtest", source_lang=target_lang)
-    target_texts = target_dataset["text"]
+    source_dataset = load_dataset(dataset_name, source_lang, split="devtest")
+    source_texts = source_dataset["text"][:150]
+    target_dataset = load_dataset(dataset_name, target_lang, split="devtest")
+    target_texts = target_dataset["text"][:150]
     return source_texts, target_texts
 
 def eval_predict(tokenizer, model, source_texts, target_lang):
