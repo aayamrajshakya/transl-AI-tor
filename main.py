@@ -3,6 +3,7 @@ from datasets import load_dataset, get_dataset_split_names
 import evaluate
 import huggingface_hub
 import config
+import sys
 
 def initialize_translator(model_name: str):
     """
@@ -16,19 +17,32 @@ def translate_text(tokenizer, model, text: str, target_lang: str):
     """
     This function takes in text and uses the tokenizer and model to translate it from the source language to the target language.
     """
+    print(f"Translating text: {text}")
     inputs = tokenizer(text, return_tensors="pt")
     translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
     translation = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+    print(f"Translation: {translation}")
     return translation
     
 def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
     """
     This function loads the evaluation dataset using the Hugging Face Datasets library.
     """
-    validation_dataset = load_dataset(dataset_name, split="validation", )
-    source_texts = validation_dataset["text"]
-    target_texts = []
+    source_dataset = load_dataset(dataset_name, source_lang, split="devtest")
+    source_texts = source_dataset["text"][:150]
+    target_dataset = load_dataset(dataset_name, target_lang, split="devtest")
+    target_texts = target_dataset["text"][:150]
     return source_texts, target_texts
+
+def eval_predict(tokenizer, model, source_texts, target_lang):
+    """
+    This function generates translations for the source texts and returns the predictions.
+    """
+    predictions = []
+    for text in source_texts:
+        translation = translate_text(tokenizer, model, text, target_lang)
+        predictions.append(translation)
+    return predictions
     
 
 def evaluate_translations(predictions, references, metric_name: str):
@@ -41,8 +55,14 @@ def evaluate_translations(predictions, references, metric_name: str):
     
 
 def main():
-    huggingface_hub.login()  # Ensure you are logged in to Hugging Face Hub
+    huggingface_hub.login()
     print(get_dataset_split_names(config.EVAL_DATASET))
+    tokenizer, model = initialize_translator(config.LANGUAGE_MODEL)
+    source_texts, target_texts = load_eval_dataset(config.EVAL_DATASET, config.SOURCE_LANGUAGE, config.TARGET_LANGUAGE)
+    predictions = eval_predict(tokenizer, model, source_texts, config.TARGET_LANGUAGE)
+    results = evaluate_translations(predictions, target_texts, config.EVAL_METRIC)
+    print(f"Evaluation results: {results}")
+    sys.exit(0)
 
 if __name__ == "__main__":
     main()

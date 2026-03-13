@@ -1,4 +1,2 @@
-# virtual environment
-.venv/
-env/
-.env
+*env*
+__pycache__
