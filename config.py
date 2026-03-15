@@ -1,9 +1,6 @@
-
 """
-
 This file contains variables and parameters for the project,
 such as file paths, model parameters, and other configuration settings.
-
 """
 
 # The language model to use for translation
@@ -11,7 +8,6 @@ LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M" # NLLB
 # LANGUAGE_MODEL = "csebuetnlp/mT5_multilingual_XLSum" # mT5
 
 # Source and target languages for translation
-# SOURCE_LANGUAGE = "en"
 SOURCE_LANGUAGE = "eng_Latn" # FLORES-200 BCP-47 code for English if needed
 TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
 # TARGET_LANGUAGE = "lim_Latn" # Limburgish
