@@ -2,3 +2,4 @@ evaluate
 transformers
 torch
 datasets
+sacrebleu

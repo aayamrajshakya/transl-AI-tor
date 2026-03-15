@@ -22,4 +22,4 @@ TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
 EVAL_DATASET = "openlanguagedata/flores_plus" # FLORES-200
 
 # Evaluation metric
-EVAL_METRIC = "bleu" # BLEU score for evaluation
+EVAL_METRIC = "sacrebleu" # BLEU score for evaluation

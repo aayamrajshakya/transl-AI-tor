@@ -41,9 +41,9 @@ def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
     This function loads the evaluation dataset using the Hugging Face Datasets library.
     """
     source_dataset = load_dataset(dataset_name, source_lang, split="devtest")
-    source_texts = source_dataset["text"][:150]
+    source_texts = source_dataset["text"][:10]
     target_dataset = load_dataset(dataset_name, target_lang, split="devtest")
-    target_texts = target_dataset["text"][:150]
+    target_texts = target_dataset["text"][:10]
     return source_texts, target_texts
 
 
@@ -72,12 +72,14 @@ def evaluate_translations(predictions, references, metric_name: str):
 def main():
     # huggingface_hub.login()
     print(f"Device used: {device}")
+    print(f"Converting \033[31m{config.SOURCE_LANGUAGE}\033[0m ==> \033[32m{config.TARGET_LANGUAGE}\033[0m")
     print(get_dataset_split_names(config.EVAL_DATASET))
     tokenizer, model = initialize_translator(config.LANGUAGE_MODEL)
     source_texts, target_texts = load_eval_dataset(config.EVAL_DATASET, config.SOURCE_LANGUAGE, config.TARGET_LANGUAGE)
     predictions = eval_predict(tokenizer, model, source_texts, config.TARGET_LANGUAGE)
     results = evaluate_translations(predictions, target_texts, config.EVAL_METRIC)
-    print(f"Evaluation results: {results}")
+    print(f"\n\033[31m{config.EVAL_METRIC} results:\033[0m")
+    print(", \n".join(f"\033[34m{key}\033[0m: {val}" for key, val in results.items()))
 
 
 if __name__ == "__main__":
