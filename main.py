@@ -3,17 +3,9 @@ from datasets import load_dataset, get_dataset_split_names
 import evaluate
 import torch
 # import huggingface_hub
-import config
+from config import *
 
-
-# strictly use GPU
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-else:
-    device = torch.device("cpu")
-    
+device = which_device() # use the best available device (gpu) or fallback to cpu
     
 def initialize_translator(model_name: str):
     """
@@ -21,20 +13,20 @@ def initialize_translator(model_name: str):
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name, tie_word_embeddings=False,
-                                                  torch_dtype=torch.float16).to(device)
+                                                  dtype=torch.float16).to(device)
     model.eval()    # put model in evaluation mode
     return tokenizer, model
 
 
-def translate_text(tokenizer, model, text: str, reference: str, target_lang: str):
+def translate_text(tokenizer, model, text: str, target_lang: str):
     """
     This function takes in text and uses the tokenizer and model to translate it from the source language to the target language.
     """
     print(f"\n\033[31mOriginal:\033[0m {text}")
     inputs = tokenizer(text, return_tensors="pt").to(device)
-    translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
+    with torch.no_grad():
+        translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
     translation = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
-    print(f"\033[33mReference:\033[0m {reference}")
     print(f"\033[32mTranslation:\033[0m {translation}")
     return translation
 
@@ -50,14 +42,14 @@ def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
     return source_texts, reference_texts
 
 
-def eval_predict(tokenizer, model, source_texts, reference_texts, target_lang):
+def eval_predict(tokenizer, model, source_texts, target_lang):
     """
     This function generates translations for the source texts and returns the predictions.
     """
     predictions = []
     with torch.no_grad():
-        for source, reference in zip(source_texts, reference_texts):
-            translation = translate_text(tokenizer, model, source, reference, target_lang)
+        for text in source_texts:
+            translation = translate_text(tokenizer, model, text, target_lang)
             predictions.append(translation)
     return predictions
 
@@ -74,14 +66,14 @@ def evaluate_translations(predictions, references, metric_name: str):
 
 def main():
     # huggingface_hub.login()
-    tokenizer, model = initialize_translator(config.LANGUAGE_MODEL)
+    tokenizer, model = initialize_translator(LANGUAGE_MODEL)
     print(f"Device used: {device}")
-    print(f"Converting \033[31m{config.SOURCE_LANGUAGE}\033[0m ==> \033[32m{config.TARGET_LANGUAGE}\033[0m")
-    print(get_dataset_split_names(config.EVAL_DATASET))
-    source_texts, reference_texts = load_eval_dataset(config.EVAL_DATASET, config.SOURCE_LANGUAGE, config.TARGET_LANGUAGE)
-    predictions = eval_predict(tokenizer, model, source_texts, reference_texts, config.TARGET_LANGUAGE)
-    results = evaluate_translations(predictions, reference_texts, config.EVAL_METRIC)
-    print(f"\n\033[31m{config.EVAL_METRIC} results:\033[0m")
+    print(f"Converting \033[31m{SOURCE_LANGUAGE}\033[0m ==> \033[32m{TARGET_LANGUAGE}\033[0m")
+    print(get_dataset_split_names(EVAL_DATASET))
+    source_texts, reference_texts = load_eval_dataset(EVAL_DATASET, SOURCE_LANGUAGE, TARGET_LANGUAGE)
+    predictions = eval_predict(tokenizer, model, source_texts, TARGET_LANGUAGE)
+    results = evaluate_translations(predictions, reference_texts, EVAL_METRIC)
+    print(f"\n\033[31m{EVAL_METRIC} results:\033[0m")
     print(", \n".join(f"\033[34m{key}\033[0m: {val}" for key, val in results.items()))
 
 
