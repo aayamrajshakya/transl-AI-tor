@@ -4,3 +4,5 @@ torch
 datasets
 sacrebleu
 gradio
+pytesseract
+openai-whisper
