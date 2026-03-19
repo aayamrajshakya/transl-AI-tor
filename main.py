@@ -2,7 +2,6 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from datasets import load_dataset, get_dataset_split_names
 import evaluate
 import torch
-# import huggingface_hub
 from config import *
 import time
 
@@ -43,15 +42,15 @@ def eval_predict(tokenizer, model, source_texts, target_lang):
     """
     This function generates translations for the source texts and returns the predictions.
     """
+    if isinstance(source_texts, str):
+        source_texts = [source_texts]
     inputs = tokenizer(source_texts, return_tensors="pt", padding=True, truncation=True).to(device)
     with torch.no_grad():
         translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
     predictions = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
-    
     for original, translation in zip(source_texts, predictions):
         print(f"\n{RED}Original:{RESET} {original}")
         print(f"{GREEN}Translation:{RESET} {translation}")
-        
     return predictions
 
 
@@ -67,7 +66,6 @@ def evaluate_translations(predictions, references, metric_name: str):
 
 def main():
     start = time.time()
-    # huggingface_hub.login()
     tokenizer, model = initialize_translator(LANGUAGE_MODEL)
     print(f"Device used: {device}")
     print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")

@@ -1,6 +1,6 @@
 import gradio as gr
 from config import *
-from main import initialize_translator,translate_text
+from main import initialize_translator, eval_predict
 import pytesseract
 from PIL import Image
 import os
@@ -13,9 +13,11 @@ tokenizer, model = initialize_translator(LANGUAGE_MODEL)
 model.to(device)
 model.eval()
 
+# speech-to-text model by OpenAI
+stt_model = whisper.load_model("small") # "small" model should be enough for our purpose
 
 def text_option(text):
-    translation = translate_text(tokenizer, model, text, TARGET_LANGUAGE)
+    translation = eval_predict(tokenizer, model, text, TARGET_LANGUAGE)
     return translation
 
 
@@ -29,18 +31,17 @@ def img_option(image_path):
     
     img = Image.open(image_path)
     ocr_output = pytesseract.image_to_string(img).strip()
-    translation = translate_text(tokenizer, model, ocr_output, TARGET_LANGUAGE)
+    translation = eval_predict(tokenizer, model, ocr_output, TARGET_LANGUAGE)
     return ocr_output, translation
 
 
 # https://medium.com/@verashoda/transcribing-audio-to-text-in-python-using-whisper-290cea2f6090
 # https://github.com/openai/whisper?tab=readme-ov-file#available-models-and-languages
 def audio_option(audio_path):
-    stt_model = whisper.load_model("small") # "small" model should be enough for our purpose
     result = stt_model.transcribe(audio_path)
     transcription = result["text"]
     transcription = str(transcription)
-    translation = translate_text(tokenizer, model, transcription, TARGET_LANGUAGE)
+    translation = eval_predict(tokenizer, model, transcription, TARGET_LANGUAGE)
     return transcription, translation
 
 
