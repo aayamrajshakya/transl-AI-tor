@@ -4,7 +4,7 @@ such as file paths, model parameters, and other configuration settings.
 """
 
 # The language model to use for translation
-LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M" # NLLB
+LANGUAGE_MODEL = "facebook/nllb-200-distilled-1.3B" # NLLB
 # LANGUAGE_MODEL = "csebuetnlp/mT5_multilingual_XLSum" # mT5
 
 # Source and target languages for translation
@@ -23,3 +23,15 @@ EVAL_DATASET = "openlanguagedata/flores_plus" # FLORES-200
 
 # Evaluation metric
 EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
+
+
+# strictly use GPU
+import torch
+def which_device():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    return device
