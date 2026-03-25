@@ -30,8 +30,8 @@ def load_translation_data(dataset_name: str, source_lang: str, target_lang: str)
     """
     This function loads Hugging Face datasets for a source and target language.
     """
-    source_dataset = load_dataset(dataset_name, source_lang, split="train")
-    target_dataset = load_dataset(dataset_name, target_lang, split="train")
+    source_dataset = load_dataset(dataset_name, source_lang)
+    target_dataset = load_dataset(dataset_name, target_lang)
     return source_dataset, target_dataset
 
 def tokenize_ft_data(tokenizer, source_dataset, target_dataset):
@@ -54,6 +54,7 @@ def compute_metrics(eval_pred):
 def fine_tune_model(tokenizer, model, source_dataset, target_dataset, epochs=3, batch_size=16):
     """ This function fine-tunes the translation model on the provided source and target datasets."""
     # Tokenize the fine-tuning data
+    print(f"\n{BLUE}Fine-tuning the model...{RESET}")
     inputs = tokenizer(source_dataset["text"], truncation=True).to(device)
     with tokenizer.as_target_tokenizer():
         labels = tokenizer(target_dataset["text"], truncation=True).to(device)
@@ -77,6 +78,7 @@ def fine_tune_model(tokenizer, model, source_dataset, target_dataset, epochs=3, 
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
+    print(f"Training on {len(source_dataset)} samples...")
     trainer.train()
     
 
@@ -118,6 +120,7 @@ def main():
     print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")
     print(get_dataset_split_names(EVAL_DATASET))
     source_dataset, reference_dataset = load_translation_data(EVAL_DATASET, SOURCE_LANGUAGE, TARGET_LANGUAGE)
+    fine_tune_model(tokenizer, model, source_dataset, reference_dataset)
     predictions = eval_predict(tokenizer, model, source_dataset, TARGET_LANGUAGE)
     results = evaluate_translations(predictions, reference_dataset, EVAL_METRIC)
     print(f"\n{RED}{EVAL_METRIC} results:{RESET}")
