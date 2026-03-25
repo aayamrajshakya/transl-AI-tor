@@ -1,4 +1,4 @@
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForSeq2Seq
 from datasets import load_dataset, get_dataset_split_names
 import evaluate
 import torch
@@ -26,22 +26,66 @@ def initialize_translator(model_name: str):
     model = torch.compile(model)    # this speeds up the runtime apparently
     return tokenizer, model
 
-
-def load_eval_dataset(dataset_name: str, source_lang: str, target_lang: str):
+def load_translation_data(dataset_name: str, source_lang: str, target_lang: str):
     """
-    This function loads the evaluation dataset using the Hugging Face Datasets library.
+    This function loads Hugging Face datasets for a source and target language.
     """
-    source_dataset = load_dataset(dataset_name, source_lang, split="devtest")
-    source_texts = source_dataset["text"][:10]
-    reference_dataset = load_dataset(dataset_name, target_lang, split="devtest")
-    reference_texts = reference_dataset["text"][:10]
-    return source_texts, reference_texts
+    source_dataset = load_dataset(dataset_name, source_lang, split="train")
+    target_dataset = load_dataset(dataset_name, target_lang, split="train")
+    return source_dataset, target_dataset
 
+def tokenize_ft_data(tokenizer, source_dataset, target_dataset):
+    """
+    This function tokenizes the fine-tuning data and prepares it for training.
+    """
+    inputs = tokenizer(source_dataset["text"], truncation=True).to(device)
+    with tokenizer.as_target_tokenizer():
+        labels = tokenizer(target_dataset["text"], truncation=True).to(device)
+    
+    data_collator = DataCollatorForSeq2Seq(tokenizer)
+    return inputs, labels, data_collator
 
-def eval_predict(tokenizer, model, source_texts, target_lang):
+def compute_metrics(eval_pred):
+    metric = evaluate.load(EVAL_METRIC)
+    logits, labels = eval_pred
+    predictions = torch.argmax(logits, dim=-1)
+    return metric.compute(predictions=predictions, references=labels)
+
+def fine_tune_model(tokenizer, model, source_dataset, target_dataset, epochs=3, batch_size=16):
+    """ This function fine-tunes the translation model on the provided source and target datasets."""
+    # Tokenize the fine-tuning data
+    inputs = tokenizer(source_dataset["text"], truncation=True).to(device)
+    with tokenizer.as_target_tokenizer():
+        labels = tokenizer(target_dataset["text"], truncation=True).to(device)
+    
+    data_collator = DataCollatorForSeq2Seq(tokenizer)
+    training_args = TrainingArguments(
+        output_dir="./results",
+        num_train_epochs=epochs,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        logging_dir="./logs",
+        logging_steps=10,
+        eval_strategy="epoch",
+        load_best_model_at_end=True,
+    )
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=inputs["train"],
+        eval_dataset=labels["validation"],
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+    )
+    trainer.train()
+    
+
+def eval_predict(tokenizer, model, source_dataset, target_lang):
     """
     This function generates translations for the source texts and returns the predictions.
     """
+
+    source_texts = source_dataset["text"][:10] # limit to 10 samples for evaluation
     if isinstance(source_texts, str):
         source_texts = [source_texts]
     inputs = tokenizer(source_texts, return_tensors="pt", padding=True, truncation=True).to(device)
@@ -54,10 +98,13 @@ def eval_predict(tokenizer, model, source_texts, target_lang):
     return predictions
 
 
-def evaluate_translations(predictions, references, metric_name: str):
+def evaluate_translations(predictions, reference_dataset, metric_name: str):
     """
     This function evaluates the translations using the specified evaluation metric.
     """
+
+    references = reference_dataset["text"][:10] # limit to 10 samples for evaluation
+
     metric = evaluate.load(metric_name)
     reference_list = [[reference] for reference in references]
     results = metric.compute(predictions=predictions, references=reference_list)
@@ -70,9 +117,9 @@ def main():
     print(f"Device used: {device}")
     print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")
     print(get_dataset_split_names(EVAL_DATASET))
-    source_texts, reference_texts = load_eval_dataset(EVAL_DATASET, SOURCE_LANGUAGE, TARGET_LANGUAGE)
-    predictions = eval_predict(tokenizer, model, source_texts, TARGET_LANGUAGE)
-    results = evaluate_translations(predictions, reference_texts, EVAL_METRIC)
+    source_dataset, reference_dataset = load_translation_data(EVAL_DATASET, SOURCE_LANGUAGE, TARGET_LANGUAGE)
+    predictions = eval_predict(tokenizer, model, source_dataset, TARGET_LANGUAGE)
+    results = evaluate_translations(predictions, reference_dataset, EVAL_METRIC)
     print(f"\n{RED}{EVAL_METRIC} results:{RESET}")
     print(", \n".join(f"{BLUE}{key}{RESET}: {val}" for key, val in results.items()))
     end = time.time()

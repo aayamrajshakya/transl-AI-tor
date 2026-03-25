@@ -18,7 +18,8 @@ TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
 # TARGET_LANGUAGE = "ydd_Hebr" # Eastern Yiddish
 # Add more languages as needed
 
-# Dataset for evaluation
+# Datasets
+FT_DATASET = "wikimedia/wikipedia" # Wikipedia dataset for fine-tuning (can be large, so we will limit the number of samples)x
 EVAL_DATASET = "openlanguagedata/flores_plus" # FLORES-200
 
 # Evaluation metric
