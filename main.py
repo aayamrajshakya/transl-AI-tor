@@ -30,27 +30,19 @@ def initialize_translator(model_name: str):
     model = torch.compile(model)    # this speeds up the runtime apparently
     return tokenizer, model
 
-def load_translation_data(dataset_name: str, source_lang: str, target_lang: str, split: str):
-    """
-    This function loads Hugging Face datasets for a source and target language.
-    """
+def tokenize_function(corpus, tokenizer):
+    return tokenizer(corpus["en"], corpus["lb"], padding="max_length", truncation=True)
 
-    source_dataset = load_dataset(dataset_name, source_lang, split=split)
-    source_texts = source_dataset["text"][:10]
-    target_dataset = load_dataset(dataset_name, target_lang, split=split)
-    target_texts = target_dataset["text"][:10]
-    return source_texts, target_texts
+# def load_translation_data(dataset_name: str, source_lang: str, target_lang: str):
+#     """
+#     This function loads Hugging Face datasets for a source and target language.
+#     """
 
-def tokenize_ft_data(tokenizer, source_dataset, target_dataset):
-    """
-    This function tokenizes the fine-tuning data and prepares it for training.
-    """
-    inputs = tokenizer(source_dataset["text"], truncation=True).to(device)
-    with tokenizer.as_target_tokenizer():
-        labels = tokenizer(target_dataset["text"], truncation=True).to(device)
-    
-    data_collator = DataCollatorForSeq2Seq(tokenizer)
-    return inputs, labels, data_collator
+#     dataset = load_dataset(dataset_name, source_lang, target_lang)
+#     #source_texts = source_dataset["text"][:10]
+#     target_dataset = load_dataset(dataset_name, target_lang)
+#     #target_texts = target_dataset["text"][:10]
+#     return source_dataset, target_dataset
 
 def compute_metrics(eval_pred):
     metric = evaluate.load(EVAL_METRIC)
@@ -58,34 +50,34 @@ def compute_metrics(eval_pred):
     predictions = torch.argmax(logits, dim=-1)
     return metric.compute(predictions=predictions, references=labels)
 
-def fine_tune_model(tokenizer, model, source_texts, target_texts, epochs=3, batch_size=16):
+def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
     """ This function fine-tunes the translation model on the provided source and target datasets."""
     # Tokenize the fine-tuning data
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
-    inputs = tokenizer(source_texts, truncation=True).to(device)
-    with tokenizer.as_target_tokenizer():
-        labels = tokenizer(target_texts, truncation=True).to(device)
-    
+    #tokenized_dataset = dataset.map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
+    split_dataset = dataset.train_test_split(test_size=0.3, seed=42)
+    #train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
+    #eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     data_collator = DataCollatorForSeq2Seq(tokenizer)
     training_args = TrainingArguments(
         output_dir="./results",
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        logging_dir="./logs",
-        logging_steps=10,
+        #logging_dir="./logs",
+        #logging_steps=10,
         eval_strategy="epoch",
-        load_best_model_at_end=True,
+        #load_best_model_at_end=True,
     )
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=inputs["train"],
-        eval_dataset=labels["validation"],
+        train_dataset=split_dataset["train"],
+        eval_dataset=split_dataset["test"],
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
-    print(f"Training on {len(source_texts)} samples...")
+    print(f"Training on {len(split_dataset['train'])} samples...")
     trainer.train()
     
 
@@ -122,13 +114,14 @@ def main():
     print(f"Device used: {device}")
 
     if (finetune_flag):
-        source_ft, references_ft = load_translation_data(FT_DATASET, "20231101.en", "20231101lb", split="train")
-        fine_tune_model(tokenizer, model, source_ft, references_ft)
+        ft_data = load_dataset(FT_DATASET, name="lb-en")["train"]
+        fine_tune_model(tokenizer, model, ft_data)
     
     if (eval_flag):
         print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")
         print(get_dataset_split_names(EVAL_DATASET))
-        source_eval, references_eval = load_translation_data(EVAL_DATASET, SOURCE_LANGUAGE, TARGET_LANGUAGE, split="devtest")
+        source_eval = load_dataset(EVAL_DATASET, SOURCE_LANGUAGE, split="devtest")["text"]
+        references_eval = load_dataset(EVAL_DATASET, SOURCE_LANGUAGE, split="devtest")["text"]
         predictions = eval_predict(tokenizer, model, source_eval, TARGET_LANGUAGE)
         results = evaluate_translations(predictions, references_eval, EVAL_METRIC)
         print(f"\n{RED}{EVAL_METRIC} results:{RESET}")

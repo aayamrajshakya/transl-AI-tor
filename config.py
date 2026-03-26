@@ -19,8 +19,8 @@ TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
 # Add more languages as needed
 
 # Datasets
-FT_DATASET = "wikimedia/wikipedia" # Wikipedia dataset for fine-tuning (can be large, so we will limit the number of samples)x
-EVAL_DATASET = "openlanguagedata/flores_plus" # FLORES-200
+FT_DATASET = "fredxlpy/LuxAlign" # Dataset for fine-tuning
+EVAL_DATASET = "openlanguagedata/flores_plus" # Dataset for evaluation
 
 # Evaluation metric
 EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
