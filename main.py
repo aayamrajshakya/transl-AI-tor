@@ -31,18 +31,9 @@ def initialize_translator(model_name: str):
     return tokenizer, model
 
 def tokenize_function(corpus, tokenizer):
-    return tokenizer(corpus["en"], corpus["lb"], padding="max_length", truncation=True)
-
-# def load_translation_data(dataset_name: str, source_lang: str, target_lang: str):
-#     """
-#     This function loads Hugging Face datasets for a source and target language.
-#     """
-
-#     dataset = load_dataset(dataset_name, source_lang, target_lang)
-#     #source_texts = source_dataset["text"][:10]
-#     target_dataset = load_dataset(dataset_name, target_lang)
-#     #target_texts = target_dataset["text"][:10]
-#     return source_dataset, target_dataset
+    tokenizer.src_lang = SOURCE_LANGUAGE
+    tokenizer.tgt_lang = TARGET_LANGUAGE
+    return tokenizer(corpus["en"], text_target=corpus["lb"], padding="max_length", truncation=True)
 
 def compute_metrics(eval_pred):
     metric = evaluate.load(EVAL_METRIC)
@@ -56,8 +47,8 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
     #tokenized_dataset = dataset.map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     split_dataset = dataset.train_test_split(test_size=0.3, seed=42)
-    #train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
-    #eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
+    train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
+    eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     data_collator = DataCollatorForSeq2Seq(tokenizer)
     training_args = TrainingArguments(
         output_dir="./results",
@@ -72,8 +63,8 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=split_dataset["train"],
-        eval_dataset=split_dataset["test"],
+        train_dataset=train_data,
+        eval_dataset=eval_data,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
