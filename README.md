@@ -1,4 +1,6 @@
 # About
+
+[![gitcgr](https://gitcgr.com/badge/aayamrajshakya/transl-AI-tor.svg)](https://gitcgr.com/aayamrajshakya/transl-AI-tor)
 This repository contains the code for our CS 5100 Foundations of AI project at Northeastern University (Boston). We're building an NLP-powered web app that translates between English and a low-resource language (Luxembourgish) using a fine-tuned No Language Left Behind (NLLB) model from Hugging Face, with support for direct text input, image uploads via OCR, and audio files, all within an easy-to-use GUI built with Gradio.
 
 
