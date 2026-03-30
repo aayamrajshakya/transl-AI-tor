@@ -1,3 +1,4 @@
+import gc
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Trainer, TrainingArguments, DataCollatorForSeq2Seq
 from datasets import load_dataset, get_dataset_split_names
 import evaluate
@@ -13,11 +14,20 @@ GREEN = '\033[32m'
 BLUE = '\033[34m'
 RESET = '\033[0m'
 
+
 finetune_flag = 'finetune' in sys.argv
 eval_flag = 'eval' in sys.argv
 
 device = which_device() # use the best available device (gpu) or fallback to cpu
 
+
+def cleanup(device):
+    print("Clearing cache...")
+    gc.collect()
+    if device.type == "mps":
+        torch.mps.empty_cache()
+    elif device.type == "cuda":
+        torch.cuda.empty_cache()
 
 def initialize_translator(model_name: str):
     """
@@ -26,14 +36,12 @@ def initialize_translator(model_name: str):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name, tie_word_embeddings=False,
                                                   torch_dtype="auto").to(device)
-    model.eval()    # put model in evaluation mode
-    model = torch.compile(model)    # this speeds up the runtime apparently
     return tokenizer, model
 
 def tokenize_function(corpus, tokenizer):
     tokenizer.src_lang = SOURCE_LANGUAGE
     tokenizer.tgt_lang = TARGET_LANGUAGE
-    return tokenizer(corpus["en"], text_target=corpus["lb"], padding="max_length", truncation=True)
+    return tokenizer(corpus["en"], text_target=corpus["lb"], padding=True, return_tensors="pt", truncation=True)
 
 def compute_metrics(eval_pred):
     metric = evaluate.load(EVAL_METRIC)
@@ -59,6 +67,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
         #logging_steps=10,
         eval_strategy="epoch",
         #load_best_model_at_end=True,
+        #remove_unused_columns=False,
     )
     trainer = Trainer(
         model=model,
@@ -101,6 +110,7 @@ def evaluate_translations(predictions, references, metric_name: str):
 
 def main():
     start = time.time()
+    cleanup(device) # free up GPU memory before starting
     tokenizer, model = initialize_translator(LANGUAGE_MODEL)
     print(f"Device used: {device}")
 
@@ -109,6 +119,8 @@ def main():
         fine_tune_model(tokenizer, model, ft_data)
     
     if (eval_flag):
+        model.eval()    # put model in evaluation mode
+        model = torch.compile(model)    # this speeds up the runtime apparently
         print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")
         print(get_dataset_split_names(EVAL_DATASET))
         source_eval = load_dataset(EVAL_DATASET, SOURCE_LANGUAGE, split="devtest")["text"]
