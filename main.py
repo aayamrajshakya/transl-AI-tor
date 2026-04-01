@@ -43,7 +43,7 @@ def initialize_translator(model_name: str):
 def tokenize_function(corpus, tokenizer):
     tokenizer.src_lang = SOURCE_LANGUAGE
     tokenizer.tgt_lang = TARGET_LANGUAGE
-    return tokenizer(corpus["en"], text_target=corpus["lb"], padding=True, truncation=True)
+    return tokenizer(corpus["en"], text_target=corpus["lb"], padding=False, truncation=True)  # padding=False, DataCollatorForSeq2Seq dynamically pads the inputs received
 
 
 def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
@@ -57,9 +57,10 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
     train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
 
-    # defined here as a closure so it has access to tokenizer for decoding token IDs to strings
+    metric = evaluate.load(EVAL_METRIC)  # loaded once here, not on every eval call
+
+    # defined here as a closure so it has access to tokenizer and metric for decoding token IDs to strings
     def compute_metrics(eval_pred):
-        metric = evaluate.load(EVAL_METRIC)
         predictions, labels = eval_pred
         labels = [[token if token != -100 else tokenizer.pad_token_id for token in label] for label in labels]  # replace -100 padding before decoding
         decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
@@ -86,26 +87,29 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
         eval_dataset=eval_data,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
     print(f"Training on {len(split_dataset['train'])} samples...")
     trainer.train()
     
 
-def eval_predict(tokenizer, model, source_texts, target_lang):
+def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=32):
     """
     This function generates translations for the source texts and returns the predictions.
     """
-
     if isinstance(source_texts, str):
         source_texts = [source_texts]
-    inputs = tokenizer(source_texts, return_tensors="pt", padding=True, truncation=True).to(device)
-    with torch.no_grad():
-        translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
-    predictions = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
-    for original, translation in zip(source_texts, predictions):
-        print(f"\n{RED}Original:{RESET} {original}")
-        print(f"{GREEN}Translation:{RESET} {translation}")
+    predictions = []
+    for i in range(0, len(source_texts), batch_size):  # batch to avoid out of memory on large datasets
+        batch = source_texts[i:i + batch_size]
+        inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True).to(device)
+        with torch.no_grad():
+            translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
+        batch_preds = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
+        for original, translation in zip(batch, batch_preds):
+            print(f"\n{RED}Original:{RESET} {original}")
+            print(f"{GREEN}Translation:{RESET} {translation}")
+        predictions.extend(batch_preds)
     return predictions
 
 
