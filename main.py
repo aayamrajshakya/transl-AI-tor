@@ -1,11 +1,8 @@
-import gc
+import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainer, Seq2SeqTrainingArguments, DataCollatorForSeq2Seq
 from datasets import load_dataset, get_dataset_split_names
-import evaluate
-import torch
+import evaluate, gc, sys
 from config import *
-import time
-import sys
 
 
 # ANSI codes
@@ -18,7 +15,16 @@ RESET = '\033[0m'
 finetune_flag = 'finetune' in sys.argv
 eval_flag = 'eval' in sys.argv
 
-device = which_device() # use the best available device (gpu) or fallback to cpu
+
+def which_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+device = which_device() # use the best available device
 
 
 def cleanup(device):
@@ -30,7 +36,7 @@ def cleanup(device):
         torch.cuda.empty_cache()
 
 
-def initialize_translator(model_name: str):
+def initialize_translator(model_name):
     """
     This function initializes the tokenizer and model for translation based on the given model name.
     """
@@ -46,7 +52,7 @@ def tokenize_function(corpus, tokenizer):
     return tokenizer(corpus["en"], text_target=corpus["lb"], padding=False, truncation=True)  # padding=False, DataCollatorForSeq2Seq dynamically pads the inputs received
 
 
-def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
+def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_BATCH_SIZE):
     """
     This function fine-tunes the translation model on the provided source and target datasets.
     """
@@ -77,6 +83,9 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
         #logging_steps=10,
         eval_strategy="epoch",
         predict_with_generate=True,
+        optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
+        dataloader_num_workers=4,  # parallel data loading so GPU isn't waiting on CPU
+        auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory
         #load_best_model_at_end=True,
         #remove_unused_columns=False,
     )
@@ -93,7 +102,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=5, batch_size=128):
     trainer.train()
     
 
-def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=32):
+def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFERENCE_BATCH_SIZE):
     """
     This function generates translations for the source texts and returns the predictions.
     """
@@ -113,7 +122,7 @@ def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=32):
     return predictions
 
 
-def evaluate_translations(predictions, references, metric_name: str):
+def evaluate_translations(predictions, references, metric_name):
     """
     This function evaluates the translations using the specified evaluation metric.
     """
@@ -124,7 +133,6 @@ def evaluate_translations(predictions, references, metric_name: str):
 
 
 def main():
-    start = time.time()
     cleanup(device) # free any leftover GPU memory from previous runs before starting
     tokenizer, model = initialize_translator(LANGUAGE_MODEL)
     print(f"Device used: {device}")
@@ -145,9 +153,6 @@ def main():
         results = evaluate_translations(predictions, references_eval, EVAL_METRIC)
         print(f"\n{RED}{EVAL_METRIC} results:{RESET}")
         print(", \n".join(f"{BLUE}{key}{RESET}: {val}" for key, val in results.items()))
-    
-    end = time.time()
-    print(f"\nTotal time: {end - start:.2f}s")
 
 
 if __name__ == "__main__":
