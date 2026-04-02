@@ -1,4 +1,6 @@
 import sys
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # prevent deadlock between fast tokenizer threads and num_proc multiprocessing
 import evaluate
 import gc
 import torch
@@ -58,8 +60,8 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
     #tokenized_dataset = dataset.map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     split_dataset = dataset.train_test_split(test_size=0.3, seed=42)
-    train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
-    eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
+    train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=4) # num_proc for parallelizing tokenization
+    eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=4)
 
     metric = evaluate.load(EVAL_METRIC)  # loaded once here, not on every eval call
 
@@ -84,8 +86,11 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
         dataloader_num_workers=4,  # parallel data loading so GPU isn't waiting on CPU
         auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
+        gradient_accumulation_steps=4,  # accumulate gradients over 4 batches
         #load_best_model_at_end=True,
         #remove_unused_columns=False,
+        bf16=device.type == "cuda",  # use bf16 if we're on cuda device
+        dataloader_pin_memory=device.type == "cuda",  # speeds up CPU to GPU data transfer
     )
     trainer = Seq2SeqTrainer(
         model=model,
@@ -107,11 +112,12 @@ def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFEREN
     if isinstance(source_texts, str):
         source_texts = [source_texts]
     predictions = []
+    forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)  # compute once before the loop, not on every batch
     for i in range(0, len(source_texts), batch_size):  # batch to avoid out of memory on large datasets
         batch = source_texts[i:i + batch_size]
         inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True).to(device)
         with torch.no_grad():
-            translated_tokens = model.generate(**inputs, forced_bos_token_id=tokenizer.convert_tokens_to_ids(target_lang))
+            translated_tokens = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id)
         batch_preds = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
         for original, translation in zip(batch, batch_preds):
             print(f"\n{RED}Original:{RESET} {original}")
@@ -131,6 +137,10 @@ def evaluate_translations(predictions, references, metric_name):
 
 
 def main():
+    if len(sys.argv) < 2:
+        print(f"{RED}PROVIDE REQD ARGUMENTS: finetune and/or eval{RESET}")
+        sys.exit(1)
+
     cleanup(device) # free any leftover GPU memory from previous runs before starting
     tokenizer, model = initialize_translator(LANGUAGE_MODEL)
     print(f"Device used: {device}")

@@ -4,8 +4,8 @@ such as file paths, model parameters, and other configuration settings.
 """
 
 # The language model to use for translation
-LANGUAGE_MODEL = "facebook/nllb-200-distilled-1.3B" # https://huggingface.co/facebook/nllb-200-distilled-1.3B
-# LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M"   # https://huggingface.co/facebook/nllb-200-distilled-600M
+# LANGUAGE_MODEL = "facebook/nllb-200-distilled-1.3B" # https://huggingface.co/facebook/nllb-200-distilled-1.3B
+LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M"   # https://huggingface.co/facebook/nllb-200-distilled-600M
 
 # Source and target languages for translation
 SOURCE_LANGUAGE = "eng_Latn" # FLORES-200 BCP-47 code for English if needed
