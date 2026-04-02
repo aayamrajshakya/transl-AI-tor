@@ -1,7 +1,9 @@
+import sys
+import evaluate
+import gc
 import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainer, Seq2SeqTrainingArguments, DataCollatorForSeq2Seq
 from datasets import load_dataset, get_dataset_split_names
-import evaluate, gc, sys
 from config import *
 
 
@@ -19,8 +21,6 @@ eval_flag = 'eval' in sys.argv
 def which_device():
     if torch.cuda.is_available():
         return torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        return torch.device("mps")
     else:
         return torch.device("cpu")
 
@@ -30,9 +30,7 @@ device = which_device() # use the best available device
 def cleanup(device):
     print("Clearing cache...")
     gc.collect()
-    if device.type == "mps":
-        torch.mps.empty_cache()
-    elif device.type == "cuda":
+    if device.type == "cuda":
         torch.cuda.empty_cache()
 
 
@@ -85,7 +83,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         predict_with_generate=True,
         optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
         dataloader_num_workers=4,  # parallel data loading so GPU isn't waiting on CPU
-        auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory
+        auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
         #load_best_model_at_end=True,
         #remove_unused_columns=False,
     )
