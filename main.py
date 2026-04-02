@@ -60,8 +60,9 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
     #tokenized_dataset = dataset.map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
     split_dataset = dataset.train_test_split(test_size=0.3, seed=42)
-    train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=4) # num_proc for parallelizing tokenization
-    eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=4)
+    num_proc = 4 if device.type == "cuda" else 1    # num_proc for parallelizing tokenization
+    train_data = split_dataset["train"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=num_proc)
+    eval_data = split_dataset["test"].map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer}, num_proc=num_proc)
 
     metric = evaluate.load(EVAL_METRIC)  # loaded once here, not on every eval call
 
@@ -84,7 +85,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         eval_strategy="epoch",
         predict_with_generate=True,
         optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
-        dataloader_num_workers=4,  # parallel data loading so GPU isn't waiting on CPU
+        dataloader_num_workers=4 if device.type == "cuda" else 0,  # parallel data loading only on cuda
         auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
         gradient_accumulation_steps=4,  # accumulate gradients over 4 batches
         #load_best_model_at_end=True,
