@@ -4,35 +4,21 @@ such as file paths, model parameters, and other configuration settings.
 """
 
 # The language model to use for translation
-LANGUAGE_MODEL = "facebook/nllb-200-distilled-1.3B" # NLLB
-# LANGUAGE_MODEL = "csebuetnlp/mT5_multilingual_XLSum" # mT5
+# LANGUAGE_MODEL = "facebook/nllb-200-distilled-1.3B" # https://huggingface.co/facebook/nllb-200-distilled-1.3B
+LANGUAGE_MODEL = "facebook/nllb-200-distilled-600M"   # https://huggingface.co/facebook/nllb-200-distilled-600M
 
 # Source and target languages for translation
 SOURCE_LANGUAGE = "eng_Latn" # FLORES-200 BCP-47 code for English if needed
 TARGET_LANGUAGE = "ltz_Latn" # Luxembourgish
-# TARGET_LANGUAGE = "lim_Latn" # Limburgish
-# TARGET_LANGUAGE = "cat_Latn" # Catalan
-# TARGET_LANGUAGE = "oci_Latn" # Occitan
-# TARGET_LANGUAGE = "isl_Latn" # Icelandic
-# TARGET_LANGUAGE = "fao_Latn" # Faroese
-# TARGET_LANGUAGE = "ydd_Hebr" # Eastern Yiddish
-# Add more languages as needed
 
 # Datasets
-FT_DATASET = "fredxlpy/LuxAlign" # Dataset for fine-tuning
-EVAL_DATASET = "openlanguagedata/flores_plus" # Dataset for evaluation
+FT_DATASET = "fredxlpy/LuxAlign" # Dataset for fine-tuning; https://huggingface.co/datasets/fredxlpy/LuxAlign
+EVAL_DATASET = "openlanguagedata/flores_plus" # Dataset for evaluation; https://huggingface.co/datasets/openlanguagedata/flores_plus
 
 # Evaluation metric
 EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
 
-
-# strictly use GPU
-import torch
-def which_device():
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
-    return device
+# Training hyperparameters
+EPOCHS = 5                  # number of full passes over the training data
+TRAIN_BATCH_SIZE = 128      # starting batch size for training; auto_find_batch_size will halve if OOM
+INFERENCE_BATCH_SIZE = 32   # batch size for inference in eval_predict

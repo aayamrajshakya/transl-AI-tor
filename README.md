@@ -11,10 +11,30 @@ This repository contains the code for our CS 5100 Foundations of AI project at N
 > 2. Install the required system dependencies **Tesseract OCR** and **FFmpeg** using your OS package manager:
 >    ```bash 
 >    sudo apt install tesseract-ocr ffmpeg  # Ubuntu/Debian    
->    sudo dnf install tesseract ffmpeg  # Fedora
->    brew install tesseract ffmpeg  # macOS
+>    sudo dnf install tesseract ffmpeg      # Fedora
+>    brew install tesseract ffmpeg          # macOS
 >    ```
 
+
+## Using uv (recommended)
+
+```bash
+uv sync
+
+uv run python main.py finetune        # fine-tune the model
+uv run python main.py eval            # evaluate the model
+uv run python main.py finetune eval   # fine-tune then evaluate
+```
+
+## Using pip
+
+```bash
+pip install -r deps.txt
+
+python main.py finetune               # fine-tune the model
+python main.py eval                   # evaluate the model
+python main.py finetune eval          # fine-tune then evaluate
+```
 
 ## Group members:
 1. Aayam Raj Shakya
