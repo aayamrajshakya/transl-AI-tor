@@ -16,7 +16,7 @@ This repository contains the code for our CS 5100 Foundations of AI project at N
 >    ```
 
 
-## Using uv (recommended)
+## Getting started
 
 ```bash
 uv sync
@@ -24,16 +24,6 @@ uv sync
 uv run python main.py finetune        # fine-tune the model
 uv run python main.py eval            # evaluate the model
 uv run python main.py finetune eval   # fine-tune then evaluate
-```
-
-## Using pip
-
-```bash
-pip install -r deps.txt
-
-python main.py finetune               # fine-tune the model
-python main.py eval                   # evaluate the model
-python main.py finetune eval          # fine-tune then evaluate
 ```
 
 ## Group members:
