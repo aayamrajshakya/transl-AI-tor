@@ -1,20 +1,25 @@
-import gradio as gr, whisper, pytesseract, warnings, torch
+import gradio as gr
+import whisper
+import pytesseract
+import torch
 from config import *
 from main import initialize_translator, eval_predict, which_device
 from PIL import Image
 
-
 # Suppress specific warnings
+import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-device = which_device() # use the best available device (gpu) or fallback to cpu
+device = which_device()  # use the best available device
 
 # loading models globally once to avoid reloading on every request
 tokenizer, model = initialize_translator(LANGUAGE_MODEL)
 model.eval()
 model = torch.compile(model)
-stt_model = whisper.load_model("small", device=device) # speech-to-text model by OpenAI. "small" model should be enough for our purpose
+stt_model = whisper.load_model(
+    "small", device=device
+)  # speech-to-text model by OpenAI. "small" model should be enough for our purpose
 
 
 def text_option(text):
@@ -28,16 +33,16 @@ def text_option(text):
 def img_option(image_path):
     if not image_path:
         return "No image uploaded. Please upload an image.", ""
-    
+
     with Image.open(image_path) as img:
         ocr_output = pytesseract.image_to_string(img).strip()
 
     if not ocr_output:
         return "No text detected in image.", ""
 
-    chunks = [s.strip() for s in ocr_output.split('\n') if s.strip()]
+    chunks = [s.strip() for s in ocr_output.split("\n") if s.strip()]
     translations = eval_predict(tokenizer, model, chunks, TARGET_LANGUAGE)
-    translation = ' '.join(translations)
+    translation = " ".join(translations)
     return ocr_output, translation
 
 
@@ -54,10 +59,12 @@ def audio_option(audio_path):
 
 text_tab = gr.Interface(
     fn=text_option,
-    inputs=gr.Textbox(lines=7, label="Original text", placeholder="Enter your text here..."),
+    inputs=gr.Textbox(
+        lines=7, label="Original text", placeholder="Enter your text here..."
+    ),
     outputs=gr.Textbox(lines=7, label="Translated text"),
     flagging_mode="never",
-    description=f"Convert {SOURCE_LANGUAGE} text into {TARGET_LANGUAGE}"
+    description=f"Convert {SOURCE_LANGUAGE} text into {TARGET_LANGUAGE}",
 )
 
 
@@ -67,7 +74,7 @@ img_tab = gr.Interface(
     outputs=[gr.Textbox(label="Extracted text"), gr.Textbox(label="Translated text")],
     flagging_mode="manual",
     description=f"Convert {SOURCE_LANGUAGE} text into {TARGET_LANGUAGE}",
-    article="Flagging saves a log along with the image, extracted text, and translated text in `.gradio/flagged/..`"
+    article="Flagging saves a log along with the image, extracted text, and translated text in `.gradio/flagged/..`",
 )
 
 
@@ -77,9 +84,11 @@ audio_tab = gr.Interface(
     outputs=[gr.Textbox(label="Transcribed text"), gr.Textbox(label="Translated text")],
     flagging_mode="manual",
     description=f"Convert {SOURCE_LANGUAGE} text into {TARGET_LANGUAGE}",
-    article="Flagging saves a log along with the audio file, transcribed text, and translated text. Try audio samples from https://audio-samples.github.io/"
+    article="Flagging saves a log along with the audio file, transcribed text, and translated text. Try audio samples from https://audio-samples.github.io/",
 )
 
 
-ui = gr.TabbedInterface([text_tab, img_tab, audio_tab], ["Text", "Image", "Audio"], "Transl-AI-tor")
+ui = gr.TabbedInterface(
+    [text_tab, img_tab, audio_tab], ["Text", "Image", "Audio"], "Transl-AI-tor"
+)
 ui.launch()
