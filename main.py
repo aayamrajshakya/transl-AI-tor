@@ -57,7 +57,7 @@ def initialize_translator(model_name):
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name,
-                                                  tie_word_embeddings=False,
+                                                #   tie_word_embeddings=False,
                                                   torch_dtype="auto").to(device)
     return tokenizer, model
 
@@ -100,7 +100,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
         return metric.compute(predictions=decoded_preds, references=[[l] for l in decoded_labels])
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=None,  # model=None prevents collator from generating decoder_input_ids, which conflicts with NLLB's internal decoder input handling during generation
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model,
                                            pad_to_multiple_of=8 if device.type == "cuda" else None)
     training_args = Seq2SeqTrainingArguments(
         output_dir="./results",
