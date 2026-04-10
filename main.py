@@ -8,8 +8,10 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     DataCollatorForSeq2Seq,
+    EarlyStoppingCallback,
 )
-from datasets import load_dataset, get_dataset_split_names
+import numpy as np
+from datasets import load_dataset
 from config import *
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # prevent deadlock between fast tokenizer threads and num_proc multiprocessing
@@ -60,22 +62,21 @@ def initialize_translator(model_name):
 
 
 def tokenize_function(corpus, tokenizer):
-    tokenizer.src_lang = SOURCE_LANGUAGE
-    tokenizer.tgt_lang = TARGET_LANGUAGE
     return tokenizer(corpus["en"],
                      text_target=corpus["lb"],
                      padding=False, # padding=False, DataCollatorForSeq2Seq dynamically pads the inputs received
-                     truncation=True)
+                     truncation=True,
+                     max_length=MAX_LENGTH)
 
 
 def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_BATCH_SIZE):
     """
     This function fine-tunes the translation model on the provided source and target datasets.
     """
-    # Tokenize the fine-tuning data
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
-    # tokenized_dataset = dataset.map(tokenize_function, batched=True, fn_kwargs={"tokenizer": tokenizer})
-    split_dataset = dataset.train_test_split(test_size=0.3,seed=42)
+    split_dataset = dataset.train_test_split(test_size=0.1, seed=42)    # luxalign is already small, so setting higher test size doesn't benefit
+    tokenizer.src_lang = SOURCE_LANGUAGE
+    tokenizer.tgt_lang = TARGET_LANGUAGE
     num_proc = (4 if device.type == "cuda" else 1)  # num_proc for parallelizing tokenization
     train_data = split_dataset["train"].map(tokenize_function,
                                             batched=True,
@@ -88,37 +89,43 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
                                           num_proc=num_proc,
                                           )
 
-    metric = evaluate.load(EVAL_METRIC)  # loaded once here, not on every eval call
+    metric = evaluate.load(EVAL_METRIC) # loaded once here, not on every eval call
 
     # defined here as a closure so it has access to tokenizer and metric for decoding token IDs to strings
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
-        labels = [
-            [token if token != -100 else tokenizer.pad_token_id for token in label]
-            for label in labels
-        ]  # replace -100 padding before decoding
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)  # replace -100 padding before decoding
         decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
         return metric.compute(predictions=decoded_preds, references=[[l] for l in decoded_labels])
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model)
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model,
+                                           pad_to_multiple_of=8 if device.type == "cuda" else None)
     training_args = Seq2SeqTrainingArguments(
         output_dir="./results",
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        # logging_dir="./logs",
-        # logging_steps=10,
-        eval_strategy="epoch",
-        predict_with_generate=True,
+        eval_strategy="epoch",  # when to run evaluation; evaluate at the end of each epoch
+        predict_with_generate=True, # whether to use generate to calc generative metrics (like BLEU)
+        generation_num_beams=4, # improves generation quality by exploring multiple promising token paths instead of just the single best one
+        generation_max_length=MAX_LENGTH,   # max length to use on each eval loop
         optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
-        dataloader_num_workers=4 if device.type == "cuda" else 0,  # parallel data loading only on cuda
-        auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
-        gradient_accumulation_steps=4,  # accumulate gradients over 4 batches
-        # load_best_model_at_end=True,
-        # remove_unused_columns=False,
-        bf16=device.type == "cuda",  # use bf16 if we're on cuda device
-        dataloader_pin_memory=device.type== "cuda",  # speeds up CPU to GPU data transfer
+        learning_rate=LEARNING_RATE,    # duhh
+        warmup_steps=200,  # no. of training steps for which the LR is gradually increased from a small val to the initial LR
+        weight_decay=1e-3,  # adds penalty term to the loss func to prevent overfitting by keeping the wts small
+        label_smoothing_factor=0.1, # prevent overconfidence
+        logging_steps=50,   # log training loss every 50 steps
+        dataloader_num_workers=(4 if device.type == "cuda" else 0),  # parallel data loading only on cuda
+        # auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
+        gradient_accumulation_steps=4,  # no. of update steps to accumulate gradients bfr performing backward/update pass
+        eval_accumulation_steps=16, # no. of prediction steps to accumulate the output tensors for, bfr moving results to CPU
+        load_best_model_at_end=True,    # load the best checkpoint at the end of training
+        metric_for_best_model="score",  # metric to use for comparing models when load_best_model_at_end=True
+        greater_is_better=True, # whether higher metric values are better; in our case: higher BLEU is indeed better
+        save_total_limit=2, # keeps the most recent checkpoint plus the best
+        bf16=(device.type == "cuda"), # use bf16 if we're on cuda device
+        dataloader_pin_memory=(device.type == "cuda"),  # speeds up CPU to GPU data transfer
     )
     trainer = Seq2SeqTrainer(
         model=model,
@@ -128,9 +135,11 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         processing_class=tokenizer,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],   # stop if BLEU doesn't improve for 2 epochs
     )
     print(f"Training on {len(split_dataset['train'])} samples...")
     trainer.train()
+    trainer.save_model()
 
 
 def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFERENCE_BATCH_SIZE):
@@ -140,15 +149,19 @@ def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFEREN
     if isinstance(source_texts, str):
         source_texts = [source_texts]
     predictions = []
+    tokenizer.src_lang = SOURCE_LANGUAGE
     forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)  # compute once before the loop, not on every batch
     for i in range(0, len(source_texts), batch_size):  # batch to avoid out of memory on large datasets
         batch = source_texts[i : i + batch_size]
         inputs = tokenizer(batch,
                            return_tensors="pt",
                            padding=True,
-                           truncation=True).to(device)
+                           truncation=True,
+                           max_length=MAX_LENGTH).to(device)
         with torch.no_grad():
-            translated_tokens = model.generate(**inputs, forced_bos_token_id=forced_bos_token_id)
+            translated_tokens = model.generate(**inputs,
+                                               forced_bos_token_id=forced_bos_token_id,
+                                               num_beams=4)
         batch_preds = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
         for original, translation in zip(batch, batch_preds):
             print(f"\n{RED}Original:{RESET} {original}")
@@ -185,8 +198,9 @@ def main():
         cleanup(device)  # free training-related tensors/gradients before eval
 
     if eval_flag:
-        model.eval()  # put model in evaluation mode
-        model = torch.compile(model)  # this speeds up the runtime apparently...
+        model.eval()
+        if device.type == "cuda":   # little effect on cpu device, apparently...
+            model = torch.compile(model)
         print(f"Converting {RED}{SOURCE_LANGUAGE}{RESET} ==> {GREEN}{TARGET_LANGUAGE}{RESET}")
         # print(get_dataset_split_names(EVAL_DATASET))
         source_eval = load_dataset(path=EVAL_DATASET,
@@ -199,7 +213,6 @@ def main():
                                    model=model,
                                    source_texts=source_eval,
                                    target_lang=TARGET_LANGUAGE)
-        evaluate_translations()
         results = evaluate_translations(predictions=predictions,
                                         references=references_eval,
                                         metric_name=EVAL_METRIC)

@@ -19,6 +19,8 @@ EVAL_DATASET = "openlanguagedata/flores_plus" # Dataset for evaluation; https://
 EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
 
 # Training hyperparameters
-EPOCHS = 5                  # number of full passes over the training data
-TRAIN_BATCH_SIZE = 128      # starting batch size for training; auto_find_batch_size will halve if OOM
-INFERENCE_BATCH_SIZE = 32   # batch size for inference in eval_predict
+EPOCHS = 5
+TRAIN_BATCH_SIZE = 16
+INFERENCE_BATCH_SIZE = 32
+LEARNING_RATE = 1e-4
+MAX_LENGTH = 128
