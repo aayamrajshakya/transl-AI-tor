@@ -2,6 +2,7 @@ import sys
 import evaluate
 import gc
 import torch
+from tqdm import tqdm
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -116,8 +117,10 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         weight_decay=1e-3,  # adds penalty term to the loss func to prevent overfitting by keeping the wts small
         label_smoothing_factor=0.1, # prevent overconfidence
         logging_steps=50,   # log training loss every 50 steps
+        report_to="none",   # disable auto-reporting of results and logs TensorBoard and others
         dataloader_num_workers=(4 if device.type == "cuda" else 0),  # parallel data loading only on cuda
         # auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
+        group_by_length=True,   # group samples of roughly the same length together to minimize padding and be more efficient
         gradient_accumulation_steps=4,  # no. of update steps to accumulate gradients bfr performing backward/update pass
         eval_accumulation_steps=16, # no. of prediction steps to accumulate the output tensors for, bfr moving results to CPU
         load_best_model_at_end=True,    # load the best checkpoint at the end of training
@@ -151,14 +154,14 @@ def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFEREN
     predictions = []
     tokenizer.src_lang = SOURCE_LANGUAGE
     forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)  # compute once before the loop, not on every batch
-    for i in range(0, len(source_texts), batch_size):  # batch to avoid out of memory on large datasets
+    for i in tqdm(range(0, len(source_texts), batch_size), desc="Translating"):  # batch to avoid out of memory on large datasets
         batch = source_texts[i : i + batch_size]
         inputs = tokenizer(batch,
                            return_tensors="pt",
                            padding=True,
                            truncation=True,
                            max_length=MAX_LENGTH).to(device)
-        with torch.no_grad():
+        with torch.inference_mode():    # disables "view tracking" and "version counter bumps," which are still active in no_grad
             translated_tokens = model.generate(**inputs,
                                                forced_bos_token_id=forced_bos_token_id,
                                                num_beams=4)
