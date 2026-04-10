@@ -116,7 +116,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         learning_rate=LEARNING_RATE,    # duhh
         warmup_steps=300,   # no. of training steps for which the LR is gradually increased from a small val to the initial LR
         weight_decay=0.01,  # adds penalty term to the loss func to prevent overfitting by keeping the wts small
-        label_smoothing_factor=0.05,    # prevent overconfidence
+        # label_smoothing_factor=0.05,    # prevent overconfidence  ## commented out to resolve the decoder issue
         lr_scheduler_type="cosine", # smoother decay than linear; tapers off gently at the end
         logging_steps=50,   # log training loss every 50 steps
         report_to="none",   # disable auto-reporting of results and logs TensorBoard and others
