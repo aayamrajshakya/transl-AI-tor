@@ -100,7 +100,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
         return metric.compute(predictions=decoded_preds, references=[[l] for l in decoded_labels])
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model,
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=None,  # model=None prevents collator from generating decoder_input_ids, which conflicts with NLLB's internal decoder input handling during generation
                                            pad_to_multiple_of=8 if device.type == "cuda" else None)
     training_args = Seq2SeqTrainingArguments(
         output_dir="./results",
@@ -113,15 +113,16 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         generation_max_length=MAX_LENGTH,   # max length to use on each eval loop
         optim="adafactor",  # memory-efficient optimizer for large models, default is adamw_torch
         learning_rate=LEARNING_RATE,    # duhh
-        warmup_steps=200,  # no. of training steps for which the LR is gradually increased from a small val to the initial LR
-        weight_decay=1e-3,  # adds penalty term to the loss func to prevent overfitting by keeping the wts small
-        label_smoothing_factor=0.1, # prevent overconfidence
+        warmup_steps=300,   # no. of training steps for which the LR is gradually increased from a small val to the initial LR
+        weight_decay=0.01,  # adds penalty term to the loss func to prevent overfitting by keeping the wts small
+        label_smoothing_factor=0.05,    # prevent overconfidence
+        lr_scheduler_type="cosine", # smoother decay than linear; tapers off gently at the end
         logging_steps=50,   # log training loss every 50 steps
         report_to="none",   # disable auto-reporting of results and logs TensorBoard and others
         dataloader_num_workers=(4 if device.type == "cuda" else 0),  # parallel data loading only on cuda
         # auto_find_batch_size=True,  # automatically tries to find the largest batch size that fits in memory, avoiding CUDA OOM errors
-        group_by_length=True,   # group samples of roughly the same length together to minimize padding and be more efficient
-        gradient_accumulation_steps=4,  # no. of update steps to accumulate gradients bfr performing backward/update pass
+        train_sampling_strategy="group_by_length",  # group samples of roughly the same length together to minimize padding and be more efficient
+        gradient_accumulation_steps=2,  # no. of update steps to accumulate gradients bfr performing backward/update pass
         eval_accumulation_steps=16, # no. of prediction steps to accumulate the output tensors for, bfr moving results to CPU
         load_best_model_at_end=True,    # load the best checkpoint at the end of training
         metric_for_best_model="score",  # metric to use for comparing models when load_best_model_at_end=True
@@ -138,7 +139,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         processing_class=tokenizer,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],   # stop if BLEU doesn't improve for 2 epochs
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],   # stop if BLEU doesn't improve for 3 consecutive epochs
     )
     print(f"Training on {len(split_dataset['train'])} samples...")
     trainer.train()
@@ -164,7 +165,8 @@ def eval_predict(tokenizer, model, source_texts, target_lang, batch_size=INFEREN
         with torch.inference_mode():    # disables "view tracking" and "version counter bumps," which are still active in no_grad
             translated_tokens = model.generate(**inputs,
                                                forced_bos_token_id=forced_bos_token_id,
-                                               num_beams=4)
+                                               num_beams=4,
+                                               no_repeat_ngram_size=3)  # prevents repeated phrases in output
         batch_preds = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)
         for original, translation in zip(batch, batch_preds):
             print(f"\n{RED}Original:{RESET} {original}")
