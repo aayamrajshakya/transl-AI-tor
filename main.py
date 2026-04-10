@@ -108,6 +108,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         eval_strategy="epoch",  # when to run evaluation; evaluate at the end of each epoch
+        save_strategy="epoch",  # when to save checkpoints; save at the end of each epoch
         predict_with_generate=True, # whether to use generate to calc generative metrics (like BLEU)
         generation_num_beams=4, # improves generation quality by exploring multiple promising token paths instead of just the single best one
         generation_max_length=MAX_LENGTH,   # max length to use on each eval loop
