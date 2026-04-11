@@ -62,8 +62,8 @@ def initialize_translator(model_name):
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name,
                                                 #   tie_word_embeddings=False,
                                                   torch_dtype="auto",
-                                                #   attn_implementation="flash_attention_2",
-                                                  attn_implementation="sdpa"
+                                                  attn_implementation="flash_attention_2",
+                                                #   attn_implementation="sdpa"
                                                   ).to(device)
     return tokenizer, model
 
