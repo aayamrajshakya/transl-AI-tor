@@ -16,6 +16,7 @@ from datasets import load_dataset, concatenate_datasets
 from config import *
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # prevent deadlock between fast tokenizer threads and num_proc multiprocessing
+# https://stackoverflow.com/questions/62691279/how-to-disable-tokenizers-parallelism-true-false-warning
 
 
 # ANSI codes
@@ -80,6 +81,7 @@ def freeze_layers(model):
     """
     Freeze shared embeddings and initial encoder layers fixed to prevent the model from losing its GK on smaller datasets
     https://medium.com/@prabhatzade/freezing-layers-and-fine-tuning-transformer-models-in-pytorch-a-simple-guide-119cad0980c6
+    https://discuss.huggingface.co/t/freeze-lower-layers-with-auto-classification-model/11386/2
     """
     if FREEZE_EMBEDDINGS:
         for param in model.model.shared.parameters():
