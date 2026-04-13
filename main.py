@@ -250,7 +250,11 @@ def main():
     print(f"Device used: {device}")
     
     cleanup(device)  # free any leftover GPU memory from previous runs before starting
-    tokenizer, model = initialize_translator(model_name=LANGUAGE_MODEL)
+    if os.path.exists("./results/best_model"):
+        print(f"{BLUE}Loading existing fine-tuned model...{RESET}")
+        tokenizer, model = initialize_translator(model_name="./results/best_model")
+    else:
+        tokenizer, model = initialize_translator(model_name=LANGUAGE_MODEL)
 
     if finetune_flag:
         ft_data = load_dataset(path=FT_DATASET, name="lb-en")["train"]
