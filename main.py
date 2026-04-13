@@ -106,7 +106,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
     """
     print(f"\n{BLUE}Fine-tuning the model...{RESET}")
     split_dataset = dataset.train_test_split(test_size=0.1, seed=42)    # luxalign is already small, so setting higher test size doesn't benefit
-    model.config.forced_bos_token_id = tokenizer.convert_tokens_to_ids(TARGET_LANGUAGE)  # training eval generates EN->LB
+    model.generation_config.forced_bos_token_id = tokenizer.convert_tokens_to_ids(TARGET_LANGUAGE)  # training eval generates EN->LB
     freeze_layers(model)
     num_proc = (4 if device.type == "cuda" else 1)  # num_proc for parallelizing tokenization
 
