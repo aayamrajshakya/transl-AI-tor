@@ -127,19 +127,22 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
                                           )
 
     # LB->EN direction (reversed pairs for bidirectional training)
-    tokenizer.src_lang = TARGET_LANGUAGE
-    tokenizer.tgt_lang = SOURCE_LANGUAGE
-    train_lb_en = split_dataset["train"].map(tokenize_function,
-                                             batched=True,
-                                             fn_kwargs={"tokenizer": tokenizer, "src_col": "lb", "tgt_col": "en"},
-                                             num_proc=num_proc,
-                                             )
+    # tokenizer.src_lang = TARGET_LANGUAGE
+    # tokenizer.tgt_lang = SOURCE_LANGUAGE
+    # train_lb_en = split_dataset["train"].map(tokenize_function,
+    #                                          batched=True,
+    #                                          fn_kwargs={"tokenizer": tokenizer, "src_col": "lb", "tgt_col": "en"},
+    #                                          num_proc=num_proc,
+    #                                          )
 
-    train_data = concatenate_datasets([train_en_lb, train_lb_en]).shuffle(seed=42)
-    print(f"{BLUE}Bidirectional training: {len(train_data)} samples ({len(train_en_lb)} EN→LB + {len(train_lb_en)} LB→EN){RESET}")
-    # Reset tokenizer to EN->LB for eval
-    tokenizer.src_lang = SOURCE_LANGUAGE
-    tokenizer.tgt_lang = TARGET_LANGUAGE
+    # train_data = concatenate_datasets([train_en_lb, train_lb_en]).shuffle(seed=42)
+    # print(f"{BLUE}Bidirectional training: {len(train_data)} samples ({len(train_en_lb)} EN→LB + {len(train_lb_en)} LB→EN){RESET}")
+    # # Reset tokenizer to EN->LB for eval
+    # tokenizer.src_lang = SOURCE_LANGUAGE
+    # tokenizer.tgt_lang = TARGET_LANGUAGE
+
+    train_data = train_en_lb.shuffle(seed=42)
+    print(f"{BLUE}Unidirectional training: {len(train_data)} samples{RESET}")
 
     metric = evaluate.load(EVAL_METRIC) # loaded once here, not on every eval call
 
@@ -200,7 +203,7 @@ def fine_tune_model(tokenizer, model, dataset, epochs=EPOCHS, batch_size=TRAIN_B
 
     print(f"Training on {len(split_dataset['train'])} samples...")
     trainer.train()
-    trainer.save_model()
+    trainer.save_model("./results/best_model")  # save the best model at the end of training
 
 
 def eval_predict(tokenizer, model, source_texts, src_lang, target_lang, batch_size=INFERENCE_BATCH_SIZE, verbose=True):
@@ -254,7 +257,7 @@ def main():
     cleanup(device)  # free any leftover GPU memory from previous runs before starting
     if os.path.exists("./results/best_model"):
         print(f"{BLUE}Loading existing fine-tuned model...{RESET}")
-        tokenizer, model = initialize_translator(model_name="./results/best_model")
+        tokenizer, model = initialize_translator(model_name=LANGUAGE_MODEL)
     else:
         tokenizer, model = initialize_translator(model_name=LANGUAGE_MODEL)
 
