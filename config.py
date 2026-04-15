@@ -16,13 +16,14 @@ FT_DATASET = "fredxlpy/LuxAlign" # Dataset for fine-tuning; https://huggingface.
 EVAL_DATASET = "openlanguagedata/flores_plus" # Dataset for evaluation; https://huggingface.co/datasets/openlanguagedata/flores_plus
 
 # Evaluation metric
-EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
+# EVAL_METRIC = "sacrebleu" # BLEU score for evaluation
+EVAL_METRIC = "chrf" # chrF score for evaluation
 
 # Training hyperparameters
 EPOCHS = 10
-TRAIN_BATCH_SIZE = 24
+TRAIN_BATCH_SIZE = 32
 INFERENCE_BATCH_SIZE = 64
-LEARNING_RATE = 5e-5
+LEARNING_RATE = 2e-5
 MAX_LENGTH = 128
 FREEZE_EMBEDDINGS = True
-FREEZE_ENCODER_LAYERS = 8  # freeze first 8 of 12 encoder layers of NLLB 600M and keep the top 4 trainable
+FREEZE_ENCODER_LAYERS = 4  # freeze first 4 of 12 encoder layers of NLLB 600M and keep the top 8 trainable
