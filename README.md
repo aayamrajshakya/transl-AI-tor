@@ -1,16 +1,9 @@
 # About
-This repository contains the code for our CS 5100 Foundations of AI project at Northeastern University (Boston). We built an NLP-powered web app that translates between English and a low-resource language (Luxembourgish) using a fine-tuned No Language Left Behind (NLLB) model from Hugging Face. It supports direct text input, image uploads (using Tesseract), and audio files (using OpenAI Whisper), all within an easy-to-use GUI built with Gradio.
-
-
-## Group members:
-1. Aayam Raj Shakya
-2. Brendan Fullerton
-3. Abhijeet Khandagale 
-
+We built an NLP-powered web app that translates between English and a low-resource language (Luxembourgish) using a fine-tuned No Language Left Behind (NLLB) model from Hugging Face. It supports direct text input, image uploads (using Tesseract), and audio files (using OpenAI Whisper), all within an easy-to-use GUI built with Gradio.
 
 
 > [!IMPORTANT]
-> 1. All three of us either use macOS or Linux, hence we don't support Windows instructions. But the installation process will be similar.
+> 1. All of us either use macOS or Linux, hence we don't support Windows instructions. But the installation process will be similar.
 > 2. The model is STRICTLY optimized for CUDA; running `main.py` on a CPU (or even MPS) device might cause some performance issues.
 > 3. We recommend using `uv` instead of `pip`, though either will work for this project.
 > 4. You'll need to log in to Hugging Face via the CLI to get a higher download rate limit and to access the FLORES dataset:
@@ -78,4 +71,4 @@ We found several other websites (mainly governmental) that offer both English an
 
 
 ## Results
-![image](images/bleu_bar_graph.png)
+![image](images/evalscore_graph.png)

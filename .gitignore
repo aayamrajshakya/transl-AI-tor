@@ -1,5 +1,4 @@
 *env*
 __pycache__
 .vscode
-.claude
-flash-attention
+final_report.pdf
