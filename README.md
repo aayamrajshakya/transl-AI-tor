@@ -78,4 +78,4 @@ We found several other websites (mainly governmental) that offer both English an
 
 
 ## Results
-![image](images/bleu_bar_graph.png)
+![image](images/evalscore_graph.png)
